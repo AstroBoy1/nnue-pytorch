@@ -1,14 +1,11 @@
 #!/bin/bash
+# sh scripts/train.sh
 
 python train.py \
- ../data/large_gensfen_multipvdiff_100_d9.binpack \
- ../data/large_gensfen_multipvdiff_100_d9.binpack \
+ ../../stockfish_train_data/lichess_db_puzzle_train.binpack \
+ --validation-data ../../stockfish_train_data/lichess_db_puzzle_val.binpack \
  --gpus 1 \
- --threads 2 \
- --batch-size 8096 \
- --progress_bar_refresh_rate 20 \
+ --resume-from-model models/nn_HalfKAv2_hm.pt \
+ --num-workers 48 \
  --smart-fen-skipping \
- --random-fen-skipping 10 \
- --features=HalfKP^ \
- --lambda=1.0 \
- --max_epochs=300
+ --max_epochs=100

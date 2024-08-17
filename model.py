@@ -285,47 +285,70 @@ class NNUE(pl.LightningModule):
 
     return x
 
+  # def step_(self, batch, batch_idx, loss_type):
+  #   # We clip weights at the start of each step. This means that after
+  #   # the last step the weights might be outside of the desired range.
+  #   # They should be also clipped accordingly in the serializer.
+  #   self._clip_weights()
+
+  #   us, them, white_indices, white_values, black_indices, black_values, outcome, score, psqt_indices, layer_stack_indices = batch
+
+  #   # convert the network and search scores to an estimate match result
+  #   # based on the win_rate_model, with scalings and offsets optimized
+  #   in_scaling = 340
+  #   out_scaling = 380
+  #   offset = 270
+
+  #   scorenet = self(us, them, white_indices, white_values, black_indices, black_values, psqt_indices, layer_stack_indices) * self.nnue2score
+  #   q  = ( scorenet - offset) / in_scaling  # used to compute the chance of a win
+  #   qm = (-scorenet - offset) / in_scaling  # used to compute the chance of a loss
+  #   qf = 0.5 * (1.0 + q.sigmoid() - qm.sigmoid())  # estimated match result (using win, loss and draw probs).
+
+  #   p  = ( score - offset) / out_scaling
+  #   pm = (-score - offset) / out_scaling
+  #   pf = 0.5 * (1.0 + p.sigmoid() - pm.sigmoid())
+
+  #   t = outcome
+  #   actual_lambda = self.start_lambda + (self.end_lambda - self.start_lambda) * (self.current_epoch / self.max_epoch)
+  #   pt = pf * actual_lambda + t * (1.0 - actual_lambda)
+
+  #   loss = torch.pow(torch.abs(pt - qf), 2.5).mean()
+
+  #   self.log(loss_type, loss)
+  #   #breakpoint()
+  #   return loss
   def step_(self, batch, batch_idx, loss_type):
-    # We clip weights at the start of each step. This means that after
-    # the last step the weights might be outside of the desired range.
-    # They should be also clipped accordingly in the serializer.
-    self._clip_weights()
+      # We clip weights at the start of each step. This means that after
+      # the last step the weights might be outside of the desired range.
+      # They should be also clipped accordingly in the serializer.
+      self._clip_weights()
 
-    us, them, white_indices, white_values, black_indices, black_values, outcome, score, psqt_indices, layer_stack_indices = batch
+      us, them, white_indices, white_values, black_indices, black_values, outcome, score, psqt_indices, layer_stack_indices = batch
 
-    # convert the network and search scores to an estimate match result
-    # based on the win_rate_model, with scalings and offsets optimized
-    in_scaling = 340
-    out_scaling = 380
-    offset = 270
+      # Convert the network output to the predicted rating
+      scorenet = self(us, them, white_indices, white_values, black_indices, black_values, psqt_indices, layer_stack_indices)
+      
+      # Assume 'score' is now the actual rating, not the outcome/evaluation
+      predicted_rating = scorenet
+      actual_rating = score  # Here 'score' represents the target rating
+      
+      # Simple Mean Squared Error (MSE) loss for ratings
+      loss = torch.pow(torch.abs(predicted_rating - actual_rating), 2).mean()
 
-    scorenet = self(us, them, white_indices, white_values, black_indices, black_values, psqt_indices, layer_stack_indices) * self.nnue2score
-    q  = ( scorenet - offset) / in_scaling  # used to compute the chance of a win
-    qm = (-scorenet - offset) / in_scaling  # used to compute the chance of a loss
-    qf = 0.5 * (1.0 + q.sigmoid() - qm.sigmoid())  # estimated match result (using win, loss and draw probs).
-
-    p  = ( score - offset) / out_scaling
-    pm = (-score - offset) / out_scaling
-    pf = 0.5 * (1.0 + p.sigmoid() - pm.sigmoid())
-
-    t = outcome
-    actual_lambda = self.start_lambda + (self.end_lambda - self.start_lambda) * (self.current_epoch / self.max_epoch)
-    pt = pf * actual_lambda + t * (1.0 - actual_lambda)
-
-    loss = torch.pow(torch.abs(pt - qf), 2.5).mean()
-
-    self.log(loss_type, loss)
-
-    return loss
-
+      self.log(loss_type, loss)
+      #breakpoint()
+      return loss
+  
   def training_step(self, batch, batch_idx):
     return self.step_(batch, batch_idx, 'train_loss')
 
   def validation_step(self, batch, batch_idx):
-    self.step_(batch, batch_idx, 'val_loss')
+    with torch.no_grad():
+      self.step_(batch, batch_idx, 'val_loss')
 
   def test_step(self, batch, batch_idx):
-    self.step_(batch, batch_idx, 'test_loss')
+    with torch.no_grad():
+      self.step_(batch, batch_idx, 'test_loss')
 
   def configure_optimizers(self):
     LR = self.lr
