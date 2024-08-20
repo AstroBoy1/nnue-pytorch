@@ -23,12 +23,10 @@ def get_parameters(layers):
   return [p for layer in layers for p in layer.parameters()]
 
 class LayerStacks(nn.Module):
-  def __init__(self, count, dropout_rate=0.5):
+  def __init__(self, count):
     super(LayerStacks, self).__init__()
 
     self.count = count
-    self.dropout_rate = dropout_rate
-    self.dropout = nn.Dropout(dropout_rate)
     self.l1 = nn.Linear(2 * L1 // 2, (L2 + 1) * count)
     # Factorizer only for the first layer because later
     # there's a non-linearity and factorization breaks.
@@ -98,6 +96,8 @@ class LayerStacks(nn.Module):
     l2c_ = l2s_.view(-1, L3)[indices]
     l2x_ = torch.clamp(l2c_, 0.0, 1.0)
 
+    dropout_rate = 0.5
+    self.dropout = nn.Dropout(dropout_rate)
     l2x_ = self.dropout(l2x_)
 
     l3s_ = self.output(l2x_).reshape((-1, self.count, 1))
@@ -149,6 +149,15 @@ class NNUE(pl.LightningModule):
     self.gamma = gamma
     self.lr = lr
     self.param_index = param_index
+
+    # Freeze earlier layers
+    self.input.weight.requires_grad = False
+    self.input.bias.requires_grad = False
+
+    self.layer_stacks.l1_fact.weight.requires_grad = False
+    self.layer_stacks.l1_fact.bias.requires_grad = False
+    self.layer_stacks.l1.weight.requires_grad = False
+    self.layer_stacks.l1.bias.requires_grad = False
 
     #self.nnue2score = 600.0
     self.nnue2score = 3000.0
@@ -355,21 +364,40 @@ class NNUE(pl.LightningModule):
     with torch.no_grad():
       self.step_(batch, batch_idx, 'test_loss')
 
+  # def configure_optimizers(self):
+  #   LR = self.lr
+  #   weight_decay = 1e-5
+  #   train_params = [
+  #     {'params' : get_parameters([self.input]), 'lr' : LR, 'gc_dim' : 0 },
+  #     {'params' : [self.layer_stacks.l1_fact.weight], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.l1_fact.bias], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.l1.weight], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.l1.bias], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.l2.weight], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.l2.bias], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.output.weight], 'lr' : LR },
+  #     {'params' : [self.layer_stacks.output.bias], 'lr' : LR },
+  #   ]
+  #   # Increasing the eps leads to less saturated nets with a few dead neurons.
+  #   # Gradient localisation appears slightly harmful.
+  #   optimizer = ranger.Ranger(train_params, betas=(.9, 0.999), eps=1.0e-7, gc_loc=False, use_gc=False)
+  #   scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=self.gamma)
+  #   return [optimizer], [scheduler]
+  
   def configure_optimizers(self):
-    LR = self.lr
-    train_params = [
-      {'params' : get_parameters([self.input]), 'lr' : LR, 'gc_dim' : 0 },
-      {'params' : [self.layer_stacks.l1_fact.weight], 'lr' : LR },
-      {'params' : [self.layer_stacks.l1_fact.bias], 'lr' : LR },
-      {'params' : [self.layer_stacks.l1.weight], 'lr' : LR },
-      {'params' : [self.layer_stacks.l1.bias], 'lr' : LR },
-      {'params' : [self.layer_stacks.l2.weight], 'lr' : LR },
-      {'params' : [self.layer_stacks.l2.bias], 'lr' : LR },
-      {'params' : [self.layer_stacks.output.weight], 'lr' : LR },
-      {'params' : [self.layer_stacks.output.bias], 'lr' : LR },
-    ]
-    # Increasing the eps leads to less saturated nets with a few dead neurons.
-    # Gradient localisation appears slightly harmful.
-    optimizer = ranger.Ranger(train_params, betas=(.9, 0.999), eps=1.0e-7, gc_loc=False, use_gc=False)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=self.gamma)
-    return [optimizer], [scheduler]
+      LR = self.lr
+      weight_decay = 1e-5  # L2 regularization parameter
+      train_params = [
+          {'params': get_parameters([self.input]), 'lr': LR, 'weight_decay': weight_decay, 'gc_dim': 0},
+          {'params': [self.layer_stacks.l1_fact.weight], 'lr': LR, 'weight_decay': weight_decay},
+          {'params': [self.layer_stacks.l1_fact.bias], 'lr': LR, 'weight_decay': 0.0},
+          {'params': [self.layer_stacks.l1.weight], 'lr': LR, 'weight_decay': weight_decay},
+          {'params': [self.layer_stacks.l1.bias], 'lr': LR, 'weight_decay': 0.0},
+          {'params': [self.layer_stacks.l2.weight], 'lr': LR, 'weight_decay': weight_decay},
+          {'params': [self.layer_stacks.l2.bias], 'lr': LR, 'weight_decay': 0.0},
+          {'params': [self.layer_stacks.output.weight], 'lr': LR, 'weight_decay': weight_decay},
+          {'params': [self.layer_stacks.output.bias], 'lr': LR, 'weight_decay': 0.0},
+      ]
+      optimizer = ranger.Ranger(train_params, betas=(.9, 0.999), eps=1.0e-7, gc_loc=False, use_gc=False)
+      scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=self.gamma)
+      return [optimizer], [scheduler]
