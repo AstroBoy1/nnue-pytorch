@@ -143,7 +143,14 @@ def main():
   print('Using log dir {}'.format(logdir), flush=True)
 
   tb_logger = pl_loggers.TensorBoardLogger(logdir)
-  checkpoint_callback = pl.callbacks.ModelCheckpoint(save_last=args.save_last_network, every_n_epochs=args.network_save_period, save_top_k=-1)
+  #checkpoint_callback = pl.callbacks.ModelCheckpoint(save_last=args.save_last_network, every_n_epochs=args.network_save_period, save_top_k=-1)
+  checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    monitor='val_loss',    # Monitor the validation loss
+    mode='min',            # Save when 'val_loss' decreases
+    save_top_k=1,          # Only keep the best checkpoint
+    verbose=True           # Print out when a new checkpoint is saved
+)
+
   trainer = pl.Trainer.from_argparse_args(args, callbacks=[checkpoint_callback], logger=tb_logger)
 
   main_device = trainer.strategy.root_device if trainer.strategy.root_device.index is None else 'cuda:' + str(trainer.strategy.root_device.index)

@@ -7,9 +7,7 @@ python train.py \
  --gpus 1 \
  --resume-from-model models/nn_HalfKAv2_hm.pt \
  --num-workers 48 \
- --smart-fen-skipping \
- --network-save-period 1 \
  --epoch-size 3_600_000 \
  --validation-size 400_000 \
  --num-workers 48 \
- --max_epochs=100
+ --max_epochs=400
