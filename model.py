@@ -146,7 +146,8 @@ class NNUE(pl.LightningModule):
     self.lr = lr
     self.param_index = param_index
 
-    self.nnue2score = 600.0
+    #self.nnue2score = 600.0
+    self.nnue2score = 3000.0
     self.weight_scale_hidden = 64.0
     self.weight_scale_out = 16.0
     self.quantized_one = 127.0
@@ -282,7 +283,7 @@ class NNUE(pl.LightningModule):
     # has a negative influence (us-0.5 is 0.5 for white and -0.5 for black,
     # which does both the averaging and sign flip for black to move)
     x = self.layer_stacks(l0_, layer_stack_indices) + (wpsqt - bpsqt) * (us - 0.5)
-
+    x = F.softplus(x)
     return x
 
   # def step_(self, batch, batch_idx, loss_type):
