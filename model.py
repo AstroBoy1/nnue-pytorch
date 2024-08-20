@@ -23,10 +23,12 @@ def get_parameters(layers):
   return [p for layer in layers for p in layer.parameters()]
 
 class LayerStacks(nn.Module):
-  def __init__(self, count):
+  def __init__(self, count, dropout_rate=0.5):
     super(LayerStacks, self).__init__()
 
     self.count = count
+    self.dropout_rate = dropout_rate
+    self.dropout = nn.Dropout(dropout_rate)
     self.l1 = nn.Linear(2 * L1 // 2, (L2 + 1) * count)
     # Factorizer only for the first layer because later
     # there's a non-linearity and factorization breaks.
@@ -95,6 +97,8 @@ class LayerStacks(nn.Module):
     l2s_ = self.l2(l1x_).reshape((-1, self.count, L3))
     l2c_ = l2s_.view(-1, L3)[indices]
     l2x_ = torch.clamp(l2c_, 0.0, 1.0)
+
+    l2x_ = self.dropout(l2x_)
 
     l3s_ = self.output(l2x_).reshape((-1, self.count, 1))
     l3c_ = l3s_.view(-1, 1)[indices]
