@@ -1,6 +1,7 @@
 #!/bin/bash
 # sh scripts/train.sh
-
+# stockfish_modules
+# stockfish_env_3.8
 python train.py \
  ../../stockfish_train_data/lichess_db_puzzle_train.binpack \
  --validation-data ../../stockfish_train_data/lichess_db_puzzle_val.binpack \

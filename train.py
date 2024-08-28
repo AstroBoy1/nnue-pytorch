@@ -172,7 +172,9 @@ def main():
     main_device,
     args.epoch_size,
     args.validation_size)
-
+  print("validation")
+  trainer.validate(nnue, val)
+  print("training")
   trainer.fit(nnue, train, val)
 
   with open(os.path.join(logdir, 'training_finished'), 'w'):

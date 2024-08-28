@@ -350,7 +350,6 @@ class NNUE(pl.LightningModule):
       loss = torch.pow(torch.abs(predicted_rating - actual_rating), 2).mean()
 
       self.log(loss_type, loss)
-      #breakpoint()
       return loss
   
   def training_step(self, batch, batch_idx):
